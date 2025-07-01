@@ -1,0 +1,94 @@
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to checkout'
+        required: false
+        default: 'private_build'
+
+env:
+  GO_VERSION: '1.23.0'
+  BINARY_NAME: 'otelcontribcol_linux_amd64'
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.inputs.branch }}
+        fetch-depth: 0
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: Verify Go installation
+      run: |
+        go version
+        go env GOPATH
+        go env GOROOT
+
+    - name: Install make (if not available)
+      run: |
+        if ! command -v make &> /dev/null; then
+          sudo apt-get update
+          sudo apt-get install -y build-essential
+        fi
+        make --version
+
+    - name: Cache Go modules
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ env.GO_VERSION }}-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-${{ env.GO_VERSION }}-
+
+    - name: Download dependencies
+      run: |
+        go mod download
+        go mod tidy
+
+    - name: Run make command
+      run: |
+        echo "Running make to build ${{ env.BINARY_NAME }}..."
+        #make build
+        # Alternative make targets you might need:
+        # make all
+        make otelcontribcol
+        # make install-tools && make otelcontribcol
+
+    - name: Verify binary creation
+      run: |
+        echo "Checking if ${{ env.BINARY_NAME }} binary was created..."
+        if [ -f "./bin/${{ env.BINARY_NAME }}" ]; then
+          echo "✅ Binary found at ./bin/${{ env.BINARY_NAME }}"
+          ls -la ./bin/${{ env.BINARY_NAME }}
+          # Move to root for easier access in next steps
+          cp ./bin/${{ env.BINARY_NAME }} ./${{ env.BINARY_NAME }}
+        else
+          echo "❌ Binary not found. Searching for possible locations..."
+          find . -name "*otel*" -type f -executable 2>/dev/null || true
+          find . -name "otelcontrib*" -type f 2>/dev/null || true
+          exit 1
+        fi
+
+    - name: Make binary executable
+      run: |
+        chmod +x ./${{ env.BINARY_NAME }}
+
+    - name: Test binary - Show version
+      run: |
+        echo "Testing ${{ env.BINARY_NAME }} binary..."
+        ./${{ env.BINARY_NAME }} version
+        # Example: List available components
+        ./${{ env.BINARY_NAME }} components || echo "Components command failed"
+        
+        # Example: Show build info
+        ./${{ env.BINARY_NAME }} --build-info || echo "Build info command failed"
