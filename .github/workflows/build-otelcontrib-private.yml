@@ -1,4 +1,8 @@
 on:
+  push:
+    branches: [ private_build ]
+  pull_request:
+    branches: [ private_build ]
   workflow_dispatch:
     inputs:
       branch:
