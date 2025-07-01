@@ -90,9 +90,6 @@ jobs:
     - name: Test binary - Show version
       run: |
         echo "Testing ${{ env.BINARY_NAME }} binary..."
-        ./${{ env.BINARY_NAME }} version
+        ./${{ env.BINARY_NAME }} --version
         # Example: List available components
         ./${{ env.BINARY_NAME }} components || echo "Components command failed"
-        
-        # Example: Show build info
-        ./${{ env.BINARY_NAME }} --build-info || echo "Build info command failed"
